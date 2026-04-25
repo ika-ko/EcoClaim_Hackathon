@@ -50,10 +50,10 @@ export default function ProfileView({ username, users, reports }) {
                 </li>
               ))}
               {myCleanups.slice(0, 3).map((r) => (
-                <li key={r.id} className="text-slate-300">
-                  ✅ Cleaned a site (+{r.bounty_value} tokens)
-                </li>
-              ))}
+              <li key={r.id} className="text-slate-300">
+                ✅ Cleaned a site (+{r.bounty_tokens} tokens)
+              </li>
+            ))}
             </ul>
           )}
         </div>

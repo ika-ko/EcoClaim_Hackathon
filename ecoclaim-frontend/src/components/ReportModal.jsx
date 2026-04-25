@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { photoUrl } from "../lib/api";
-import { formatKg } from "../lib/api";
+import { photoUrl, formatKg } from "../lib/api";
 export default function ReportModal({
   report,
   onClose,
@@ -29,7 +28,7 @@ export default function ReportModal({
   const handleShare = async () => {
     const shareData = {
       title: "EcoClaim report",
-      text: `Help clean up Ruse — hazard ${report.hazard_score}/10, ${report.bounty_value} token bounty`,
+      text: `Help clean up Ruse — hazard ${report.hazard_score}/10, ${report.bounty_tokens} token bounty`,
       url: `${window.location.origin}/?report=${report.id}`,
     };
     try {

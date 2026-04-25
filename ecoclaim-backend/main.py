@@ -1,17 +1,10 @@
 """
-EcoClaim backend — Phase 4: real persistence.
-Stub AI logic stays for now; Phase 6/7 swap to real Claude.
+EcoClaim backend — FastAPI app.
+Endpoints for reports, claims, likes, comments. Real Claude vision + GPS fraud check.
 """
-"""
-EcoClaim backend — Phase 6: real Claude Analyze.
-"""
-import storage
-import vision
-import gps
 from dotenv import load_dotenv
-load_dotenv()  # MUST be called before importing anything that reads env vars
+load_dotenv()  # MUST run before any import that reads env vars
 
-import random
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -23,18 +16,11 @@ from pydantic import BaseModel, Field
 
 import storage
 import vision
-import random
-from datetime import datetime, timezone
-from typing import Optional
+import gps
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+GPS_TOLERANCE_METERS = 50
 
-import storage
-
-app = FastAPI(title="EcoClaim API", version="0.4.0")
+app = FastAPI(title="EcoClaim API", version="0.7.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,7 +30,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-GPS_TOLERANCE_METERS = 50
 # Initialize storage on startup
 storage.init_storage()
 
@@ -82,7 +67,7 @@ class CommentCreate(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "EcoClaim API", "version": "0.4.0"}
+    return {"status": "ok", "service": "EcoClaim API", "version": "0.7.0"}
 
 
 @app.get("/api/reports")
@@ -93,6 +78,7 @@ def list_reports():
 @app.get("/api/users")
 def list_users():
     return storage.list_users()
+
 
 @app.post("/api/report")
 def create_report(payload: ReportCreate):
@@ -159,6 +145,7 @@ def create_report(payload: ReportCreate):
 
     return new_report
 
+
 @app.post("/api/claim")
 def claim_cleanup(payload: ClaimCreate):
     report = storage.get_report(payload.report_id)
@@ -210,10 +197,16 @@ def claim_cleanup(payload: ClaimCreate):
                 },
                 "gps_check": {"distance_m": round(distance_m, 1), "passed": False},
             }
-    # If after_gps is None we can't run the geometric check; we'll let Claude decide alone
 
     # Layer 2: Claude visual verification
-    before_path = storage.PHOTOS_DIR / Path(report["images"]["before"]).name
+    before_url = report["images"].get("before")
+    if not before_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Original report has no before photo to compare against",
+        )
+    before_path = storage.PHOTOS_DIR / Path(before_url).name
+
     try:
         verification = vision.verify_cleanup(str(before_path), str(after_path))
     except Exception as e:
@@ -222,7 +215,7 @@ def claim_cleanup(payload: ClaimCreate):
     gps_check = (
         {"distance_m": round(distance_m, 1), "passed": True}
         if distance_m is not None
-        else {"distance_m": None, "passed": None}  # GPS data unavailable
+        else {"distance_m": None, "passed": None}
     )
 
     if verification["same_location"] and verification["cleanup_verified"]:

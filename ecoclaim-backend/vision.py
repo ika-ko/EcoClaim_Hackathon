@@ -2,9 +2,7 @@
 Claude Vision integration for EcoClaim.
 Two functions:
   - analyze_dump(image_path) — for new reports
-  - verify_cleanup(before_path, after_path) — for cleanup claims (Phase 7)
-
-Prompts adapted from the EarthCare reference project.
+  - verify_cleanup(before_path, after_path) — for cleanup claims
 """
 import base64
 import json
@@ -63,13 +61,15 @@ Respond with ONLY a JSON object, no other text, no markdown fences:
 {
   "is_illegal_dump": true/false,
   "hazard_score": 1-10,
-  "estimated_volume_kg": integer (rough estimate of waste weight),
+  "estimated_volume_kg": integer (rough estimate of waste weight; round to nearest 10),
   "bounty_tokens": integer (calculate as hazard_score * 10 + estimated_volume_kg, capped at 500),
   "description": "one sentence in English describing what you see",
   "waste_types": ["plastic", "construction", "organic", "hazardous", "mixed"]
 }
 
 Hazard scoring guide: 1-3 (litter), 4-7 (household/construction waste), 8-10 (chemicals/industrial/hazardous).
+
+Volume guidance: be conservative. A few bags = ~10kg. A small pile = ~30kg. Large pile = ~100kg. Truckload = ~500kg. Round to nearest 10.
 
 If is_illegal_dump is false, set bounty_tokens to 0."""
 
@@ -104,7 +104,6 @@ def analyze_dump(image_path: str) -> dict:
             "waste_types": [],
         }
 
-    # Defensive fill-in of any missing keys
     result.setdefault("is_illegal_dump", False)
     result.setdefault("hazard_score", 0)
     result.setdefault("estimated_volume_kg", 0)
@@ -114,26 +113,29 @@ def analyze_dump(image_path: str) -> dict:
     return result
 
 
-# --- Verify (Phase 7 will use this) ---
-ANALYZE_PROMPT = """You are an environmental hazard analyst for EcoClaim, a civic platform that pays bounties for cleaning up illegal dumping in Bulgaria.
+# --- Verify ---
 
-Analyze this photo and determine if it shows illegal dumping (garbage piles in nature, abandoned waste, fly-tipping). DO NOT count: official garbage bins, construction sites with permits, organized recycling areas, indoor trash.
+VERIFY_PROMPT = """You are verifying a cleanup claim for EcoClaim.
+
+Image 1 is the BEFORE photo — a reported illegal dump site.
+Image 2 is the AFTER photo — the user claims they cleaned it up.
+
+Determine:
+1. Are these the same physical location? (Look at background, terrain, landmarks, vegetation, structures.)
+2. Has the garbage actually been removed?
+
+Be skeptical. Common fraud patterns:
+- Different location entirely
+- Same location but garbage just moved out of frame
+- Photo taken from a different angle to hide remaining waste
 
 Respond with ONLY a JSON object, no other text, no markdown fences:
 {
-  "is_illegal_dump": true/false,
-  "hazard_score": 1-10,
-  "estimated_volume_kg": integer (rough estimate of waste weight; round to nearest 10),
-  "bounty_tokens": integer (calculate as hazard_score * 10 + estimated_volume_kg, capped at 500),
-  "description": "one sentence in English describing what you see",
-  "waste_types": ["plastic", "construction", "organic", "hazardous", "mixed"]
-}
-
-Hazard scoring guide: 1-3 (litter), 4-7 (household/construction waste), 8-10 (chemicals/industrial/hazardous).
-
-Volume guidance: be conservative. A few bags = ~10kg. A small pile = ~30kg. Large pile = ~100kg. Truckload = ~500kg. Round to nearest 10.
-
-If is_illegal_dump is false, set bounty_tokens to 0."""
+  "same_location": true/false,
+  "cleanup_verified": true/false,
+  "confidence": 0.0-1.0,
+  "reasoning": "two sentences explaining your decision"
+}"""
 
 
 def verify_cleanup(before_path: str, after_path: str) -> dict:
