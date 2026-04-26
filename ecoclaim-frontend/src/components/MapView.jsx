@@ -51,12 +51,24 @@ export default function MapView({ reports, onMarkerClick, onReportClick }) {
       </MapContainer>
 
       <button
-        className="absolute bottom-6 right-6 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full w-16 h-16 shadow-lg flex items-center justify-center text-3xl transition z-[1000]"
-        title="Report a dump"
-        onClick={onReportClick}
-      >
-        +
-      </button>
+  className="absolute bottom-6 right-6 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full w-16 h-16 shadow-lg flex items-center justify-center transition z-[1000]"
+  title="Report a dump"
+  onClick={onReportClick}
+  aria-label="Report a dump"
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="3"
+    strokeLinecap="round"
+    className="w-8 h-8"
+  >
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+</button>
     </div>
   );
 }
