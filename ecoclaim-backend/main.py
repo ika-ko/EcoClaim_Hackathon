@@ -19,6 +19,7 @@ import vision
 import gps
 
 GPS_TOLERANCE_METERS = 50
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB after base64 decode
 
 app = FastAPI(title="EcoClaim API", version="0.7.0")
 
@@ -85,6 +86,13 @@ def create_report(payload: ReportCreate):
     if not payload.image.startswith("data:image"):
         raise HTTPException(status_code=400, detail="Image must be a base64 data URL")
 
+    # Quick size check — base64 inflates by ~33%, so 7 MB encoded ≈ 5 MB binary
+    if len(payload.image) > MAX_IMAGE_BYTES * 4 // 3:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image too large (max {MAX_IMAGE_BYTES // (1024*1024)} MB)",
+        )
+
     # Save image to disk
     try:
         photo_url = storage.save_image_from_data_url(payload.image)
@@ -110,7 +118,10 @@ def create_report(payload: ReportCreate):
         analysis = vision.analyze_dump(str(absolute_photo_path))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI analysis failed: {e}")
-
+    # Clamp values defensively in case the model returns junk
+    analysis["hazard_score"] = max(0, min(10, int(analysis.get("hazard_score", 0))))
+    analysis["estimated_volume_kg"] = max(0, min(1000, int(analysis.get("estimated_volume_kg", 0))))
+    analysis["bounty_tokens"] = max(0, min(500, int(analysis.get("bounty_tokens", 0))))
     if not analysis["is_illegal_dump"]:
         raise HTTPException(
             status_code=422,
@@ -163,6 +174,13 @@ def claim_cleanup(payload: ClaimCreate):
 
     if not payload.image.startswith("data:image"):
         raise HTTPException(status_code=400, detail="Image must be a base64 data URL")
+
+    # Quick size check — base64 inflates by ~33%, so 7 MB encoded ≈ 5 MB binary
+    if len(payload.image) > MAX_IMAGE_BYTES * 4 // 3:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image too large (max {MAX_IMAGE_BYTES // (1024*1024)} MB)",
+        )
 
     # Save the after photo
     try:
